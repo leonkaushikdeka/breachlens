@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "breachlens"
+version = "1.0.0"
+description = "Open-source cyber breach cost & risk quantification engine"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Leon Kaushik Deka" }]
+keywords = [
+    "cybersecurity", "risk-quantification", "machine-learning",
+    "data-breach", "conformal-prediction", "fair", "crq",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scikit-learn>=1.3",
+    "joblib>=1.3",
+    "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+app = ["streamlit>=1.40", "plotly>=5.18"]
+api = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
+explain = ["shap>=0.44"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "ruff>=0.3",
+    "mypy>=1.8",
+    "httpx>=0.27",
+    "openpyxl>=3.1",
+]
+
+[project.scripts]
+breachlens = "breachlens.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/leonkaushikdeka/breachlens"
+Repository = "https://github.com/leonkaushikdeka/breachlens"
+Issues = "https://github.com/leonkaushikdeka/breachlens/issues"
+
+[tool.setuptools]
+packages = ["breachlens"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["examples", "docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+ignore = ["B008"]  # FastAPI uses callables in argument defaults
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_ignores = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+markers = [
+    "unit: fast, isolated unit tests",
+    "integration: tests that train a model or touch the dataset",
+    "e2e: end-to-end API/app tests",
+]
+
+[tool.coverage.run]
+source = ["breachlens"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

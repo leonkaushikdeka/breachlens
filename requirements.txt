@@ -1,0 +1,9 @@
+# Runtime dependencies for the Streamlit Community Cloud deployment and the API.
+# For local development install the package instead:  pip install -e ".[dev,app,api]"
+numpy>=1.24
+pandas>=2.0
+scikit-learn>=1.3
+joblib>=1.3
+pydantic>=2.5
+streamlit>=1.40
+plotly>=5.18

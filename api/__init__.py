@@ -1,0 +1,1 @@
+"""BreachLens FastAPI service package."""
