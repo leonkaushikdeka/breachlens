@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Code style: ruff](https://img.shields.io/badge/lint-ruff-261230.svg)](https://github.com/astral-sh/ruff)
-[![Streamlit](https://img.shields.io/badge/demo-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](#-live-demo)
+[![Live Demo](https://img.shields.io/badge/▶_Live_Demo-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://breachlens-m7a7kc8embjt5bsync8j2t.streamlit.app/)
 
 </div>
 
@@ -54,10 +54,11 @@ consultant, or compliance officer can actually use:
 
 ## 🚀 Live demo
 
-The Streamlit app is built to deploy free on **Streamlit Community Cloud** — main file
-`streamlit_app.py`. See [Deployment](#-deployment).
+### ▶ **[Try BreachLens live →](https://breachlens-m7a7kc8embjt5bsync8j2t.streamlit.app/)**
 
-> _Add your deployed URL here once live, e.g._ `https://breachlens.streamlit.app`
+No install needed — profile an organisation and see the cost estimate, risk
+distribution, and investment ROI in your browser. Deployed free on Streamlit Community
+Cloud (main file `streamlit_app.py`).
 
 <div align="center">
 
