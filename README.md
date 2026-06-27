@@ -234,5 +234,4 @@ Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📄 License
 
-[MIT](LICENSE) © Leon Kaushik Deka · Grew out of a university project on data breach
-cost prediction ([report](docs/report)).
+[MIT](LICENSE) © Leon Kaushik Deka
