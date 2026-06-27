@@ -155,6 +155,20 @@ def _cmd_controls(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_report(args: argparse.Namespace) -> int:
+    from .report import build_html, build_markdown
+
+    profile = _profile(args)
+    text = build_html(profile) if args.format == "html" else build_markdown(profile)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        print(f"Wrote {args.format} report to {args.out}")
+    else:
+        print(text)
+    return 0
+
+
 def _cmd_train(args: argparse.Namespace) -> int:
     from .models import save_model, train
 
@@ -204,6 +218,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_ctl = sub.add_parser("controls", help="List the security control catalogue.")
     p_ctl.set_defaults(func=_cmd_controls)
+
+    p_rep = sub.add_parser("report", help="Generate a board-ready report.")
+    _add_profile_flags(p_rep)
+    p_rep.add_argument("--format", choices=["md", "html"], default="md")
+    p_rep.add_argument("--out", default=None, help="Output file (defaults to stdout).")
+    p_rep.set_defaults(func=_cmd_report)
 
     p_train = sub.add_parser("train", help="Train the optional ML second opinion.")
     p_train.add_argument("--out", default=None)

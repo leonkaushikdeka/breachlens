@@ -28,6 +28,7 @@ from .cost_model import CostBreakdown, estimate_cost
 from .montecarlo import MonteCarloResult, simulate
 from .penalties import regulatory_penalty
 from .predictor import BreachLens
+from .report import build_html, build_markdown
 from .scenario import InvestmentCase, build_investment_case
 from .schema import BreachProfile, OrgProfile, PredictionResult
 
@@ -46,6 +47,8 @@ __all__ = [
     "simulate",
     "regulatory_penalty",
     "build_investment_case",
+    "build_markdown",
+    "build_html",
     "jurisdiction",
 ]
 

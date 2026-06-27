@@ -403,6 +403,28 @@ def render() -> None:
         )
 
     with tab_method:
+        from breachlens.report import build_html, build_markdown
+
+        st.markdown("#### Board-ready report")
+        st.caption(
+            "Download a shareable report of this estimate. Open the HTML and "
+            "Print → Save as PDF for a clean board/client deliverable."
+        )
+        dl1, dl2 = st.columns(2)
+        dl1.download_button(
+            "⬇ Download Markdown",
+            build_markdown(profile),
+            file_name="breachlens_report.md",
+            width="stretch",
+        )
+        dl2.download_button(
+            "⬇ Download HTML (→ PDF)",
+            build_html(profile),
+            file_name="breachlens_report.html",
+            mime="text/html",
+            width="stretch",
+        )
+        st.divider()
         st.markdown(
             """
             **How the estimate is built.** Breach cost is *not* predicted by a black box.

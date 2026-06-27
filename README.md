@@ -46,6 +46,7 @@ consultant, or compliance officer can actually use:
 | ⚖️ **Real regulatory teeth** | DPDP Act 2023 (₹250 cr cap), GDPR (€20M / 4% turnover), US per-record exposure. |
 | 🎲 **Honest uncertainty** | Monte Carlo → expected, P50/P90/P95, and a **loss-exceedance curve**. |
 | 🛠️ **Investment ROI** | Each security control maps to a published IBM cost factor; get savings, ROI, and payback. |
+| 📄 **Board-ready report** | One-click export to Markdown / printable HTML (→ PDF) for boards and clients. |
 | 🤖 **Optional ML second opinion** | Train a scikit-learn model on *your own* breach data; the bundled synthetic set is a labelled demo seed only. |
 | 🧩 **Four ways to use it** | Python library · Streamlit app · FastAPI service · CLI. |
 
@@ -101,6 +102,8 @@ breachlens invest --records 350 --detection 220 --response 95 --security 45 \
 
 breachlens penalty --records 350 --jurisdiction IN --severity 0.4
 breachlens controls            # list the security control catalogue
+breachlens report --records 350 --detection 220 --response 95 --security 45 \
+    --format html --out report.html    # board-ready report (open → print to PDF)
 ```
 
 ### Python API
@@ -221,7 +224,7 @@ make lint   # ruff      make type   # mypy      make figures  # regenerate chart
 - [ ] Bring-your-own benchmark overrides from the web app (custom per-record cost)
 - [ ] Full FAIR decomposition (Loss Event Frequency × Loss Magnitude)
 - [ ] Annualised Loss Expectancy (ALE) view across a control portfolio
-- [ ] Exportable board-ready PDF report
+- [x] Exportable board-ready report (Markdown / printable HTML)
 - [ ] CIS Controls v8 / NIST CSF 2.0 guided maturity assessment
 
 ## 🤝 Contributing
