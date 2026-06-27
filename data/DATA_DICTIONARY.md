@@ -1,8 +1,14 @@
 # Data dictionary — `cyber_breach.csv`
 
-200 synthetic data-breach records for Indian organisations. Synthetic data is used
-because real per-company breach costs are confidential and unpublished. The dataset is
-calibrated to the magnitudes in the IBM *Cost of a Data Breach* report for India.
+200 synthetic data-breach records for Indian organisations. **This dataset is a labelled
+demo seed for the optional ML "second opinion" only** (`breachlens train`). The primary
+BreachLens estimate does **not** use it — it is built from cited industry benchmarks and
+regulatory penalty models (see [`breachlens/benchmarks.py`](../breachlens/benchmarks.py)
+and [`breachlens/penalties.py`](../breachlens/penalties.py)).
+
+Synthetic data is used because real per-company breach costs are confidential and
+unpublished. The dataset is calibrated to the magnitudes in the IBM *Cost of a Data
+Breach* report for India.
 
 | Column | Role | Type | Range | Meaning |
 |--------|------|------|-------|---------|

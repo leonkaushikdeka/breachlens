@@ -4,60 +4,64 @@ from __future__ import annotations
 
 import pytest
 
-from breachlens import BreachLens, BreachProfile
-from breachlens.config import FEATURE_NAMES
+from breachlens import BreachLens, Industry, Jurisdiction, OrgProfile
 
 
 @pytest.mark.unit
 def test_profile_validation_rejects_out_of_range() -> None:
     with pytest.raises(ValueError):
-        BreachProfile(records_exposed=5, detection_time=200, response_time=90, security_score=40)
+        OrgProfile(records_exposed=5, detection_time=200, response_time=90, security_score=40)
 
 
 @pytest.mark.unit
-def test_profile_midpoint_is_valid() -> None:
-    p = BreachProfile.midpoint()
-    assert set(p.to_features()) == set(FEATURE_NAMES)
+def test_org_profile_derived_properties() -> None:
+    org = OrgProfile(records_exposed=300, detection_time=200, response_time=90, security_score=40)
+    assert org.records_actual == 300_000
+    assert org.lifecycle_days == 290
+
+
+@pytest.mark.unit
+def test_estimate_accepts_dict(lens: BreachLens) -> None:
+    c = lens.estimate(
+        {"records_exposed": 300, "detection_time": 200, "response_time": 90, "security_score": 40}
+    )
+    assert c.total > 0
+
+
+@pytest.mark.unit
+def test_simulate_and_money(lens: BreachLens, org: OrgProfile) -> None:
+    mc = lens.simulate(org, n=2000)
+    assert mc.p90 >= mc.p50
+    assert lens.money(org, 12.5).startswith("₹")
+
+
+@pytest.mark.unit
+def test_investment_case_via_facade(lens: BreachLens, org: OrgProfile) -> None:
+    case = lens.investment_case(org, ["encryption"], investment=1.0)
+    assert case.improved.total < case.baseline.total
+
+
+@pytest.mark.unit
+def test_predict_ml_requires_model(lens: BreachLens, org: OrgProfile) -> None:
+    with pytest.raises(RuntimeError):
+        lens.predict_ml(org)
 
 
 @pytest.mark.integration
-def test_predict_accepts_dict(lens: BreachLens) -> None:
-    result = lens.predict(
-        {"records_exposed": 300, "detection_time": 200, "response_time": 90, "security_score": 40}
-    )
-    assert result.expected_cost > 0
+def test_with_ml_attaches_model(org: OrgProfile) -> None:
+    lens = BreachLens.with_ml(seed=2)
+    result = lens.predict_ml(org)
     assert result.lower <= result.expected_cost <= result.upper
 
 
-@pytest.mark.integration
-def test_explain_contributions_sum_close_to_prediction(lens: BreachLens) -> None:
-    profile = BreachProfile(
-        records_exposed=420, detection_time=250, response_time=110, security_score=30
+@pytest.mark.unit
+def test_eu_profile_formats_in_euros(lens: BreachLens) -> None:
+    org = OrgProfile(
+        records_exposed=200,
+        detection_time=150,
+        response_time=60,
+        security_score=65,
+        industry=Industry.FINANCIAL,
+        jurisdiction=Jurisdiction.EU,
     )
-    contributions = lens.explain(profile)
-    baseline = contributions.attrs["baseline_cost"]
-    reconstructed = baseline + contributions["contribution"].sum()
-    predicted = lens.predict(profile).expected_cost
-    # Linear model -> additive attribution should reconstruct exactly.
-    assert reconstructed == pytest.approx(predicted, abs=0.5)
-
-
-@pytest.mark.integration
-def test_importance_sums_to_one(lens: BreachLens) -> None:
-    imp = lens.importance()
-    assert imp["importance_norm"].sum() == pytest.approx(1.0, abs=1e-6)
-
-
-@pytest.mark.unit
-def test_format_uses_region(lens: BreachLens) -> None:
-    assert lens.format(18.24).startswith("₹")
-    assert "crore" in lens.format(18.24)
-
-
-@pytest.mark.unit
-def test_us_region_formats_in_dollars() -> None:
-    from breachlens.models import train
-
-    us = BreachLens(model=train(seed=2), region=None)
-    us.region = __import__("breachlens").get_region("US")
-    assert us.format(10.0).startswith("$")
+    assert lens.money(org, 4.0).startswith("€")

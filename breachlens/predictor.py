@@ -1,90 +1,96 @@
-"""High-level facade: the one object apps, the API and the CLI talk to."""
+"""High-level facade: the one object apps, the API and the CLI talk to.
+
+The **benchmark engine** (cited industry figures + regulatory penalties + Monte Carlo)
+is the primary, credible path. A machine-learning model trained on real breach data you
+supply is available as an optional second opinion.
+"""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 
-from .config import RegionConfig, get_region
-from .data import load_dataset, split_features_target
-from .explain import global_importance, local_contributions
-from .models import BreachModel, load_model, save_model, train
-from .scenario import ScenarioResult, predict_profile, sweep_feature, what_if
-from .schema import BreachProfile, PredictionResult
+from .benchmarks import JurisdictionBenchmark, jurisdiction
+from .cost_model import CostBreakdown, estimate_cost
+from .models import BreachModel, train
+from .montecarlo import MonteCarloResult, simulate
+from .scenario import InvestmentCase, build_investment_case, sweep
+from .schema import OrgProfile, PredictionResult
 
 
 class BreachLens:
-    """A trained breach-cost estimator with prediction, explanation and what-if.
+    """Breach-cost estimation with uncertainty, explanation and investment ROI."""
 
-    Construct it the easy way with :meth:`load_or_train`, which loads a persisted
-    model if one exists and otherwise trains a fresh one in memory — so a clean
-    clone (or a free Streamlit deploy) works with zero setup steps.
-    """
-
-    def __init__(self, model: BreachModel, region: RegionConfig | None = None) -> None:
-        self.model = model
-        self.region = region or get_region()
-
-    @classmethod
-    def load_or_train(
-        cls,
-        path: str | Path | None = None,
-        *,
-        region_code: str | None = None,
-    ) -> BreachLens:
-        region = get_region(region_code)
-        try:
-            model = load_model(path)
-        except FileNotFoundError:
-            model = train()
-        return cls(model=model, region=region)
-
-    @classmethod
-    def train_fresh(cls, *, region_code: str | None = None, **train_kwargs) -> BreachLens:
-        return cls(model=train(**train_kwargs), region=get_region(region_code))
-
-    def save(self, path: str | Path | None = None) -> Path:
-        return save_model(self.model, path)
+    def __init__(self, ml_model: BreachModel | None = None) -> None:
+        self.ml_model = ml_model
 
     # --- coercion -------------------------------------------------------------
     @staticmethod
-    def _coerce(profile: BreachProfile | dict[str, float]) -> BreachProfile:
-        return profile if isinstance(profile, BreachProfile) else BreachProfile(**profile)
+    def _coerce(profile: OrgProfile | dict) -> OrgProfile:
+        return profile if isinstance(profile, OrgProfile) else OrgProfile(**profile)
 
-    # --- core operations ------------------------------------------------------
-    def predict(
+    # --- benchmark engine (primary) ------------------------------------------
+    def estimate(
+        self, profile: OrgProfile | dict, controls: list[str] | None = None
+    ) -> CostBreakdown:
+        """Transparent, cited breach-cost breakdown (recovery + lost business + fines)."""
+        return estimate_cost(self._coerce(profile), controls)
+
+    def simulate(
         self,
-        profile: BreachProfile | dict[str, float],
-        confidence: float | None = None,
-    ) -> PredictionResult:
-        return predict_profile(self.model, self._coerce(profile), confidence)
-
-    def explain(self, profile: BreachProfile | dict[str, float]) -> pd.DataFrame:
-        return local_contributions(self.model, self._coerce(profile))
-
-    def importance(self) -> pd.DataFrame:
-        X, y = split_features_target(load_dataset())
-        return global_importance(self.model, X, y)
-
-    def what_if(
-        self,
-        profile: BreachProfile | dict[str, float],
-        changes: dict[str, float],
-        confidence: float | None = None,
-    ) -> ScenarioResult:
-        return what_if(self.model, self._coerce(profile), changes, confidence)
-
-    def sweep(
-        self,
-        profile: BreachProfile | dict[str, float],
-        feature: str,
+        profile: OrgProfile | dict,
+        controls: list[str] | None = None,
         *,
-        n: int = 25,
-        confidence: float | None = None,
-    ) -> pd.DataFrame:
-        return sweep_feature(self.model, self._coerce(profile), feature, n=n, confidence=confidence)
+        n: int = 10_000,
+        seed: int = 2,
+    ) -> MonteCarloResult:
+        """Monte Carlo cost distribution (expected, P50/P90/P95, exceedance curve)."""
+        return simulate(self._coerce(profile), controls, n=n, seed=seed)
 
-    # --- presentation ---------------------------------------------------------
-    def format(self, native_value: float, decimals: int = 2) -> str:
-        return self.region.format(native_value, decimals)
+    def investment_case(
+        self,
+        profile: OrgProfile | dict,
+        add_controls: list[str],
+        *,
+        investment: float,
+        breach_probability: float | None = None,
+    ) -> InvestmentCase:
+        """ROI of adding security controls (savings, ROI, payback)."""
+        return build_investment_case(
+            self._coerce(profile),
+            add_controls,
+            investment=investment,
+            breach_probability=breach_probability,
+        )
+
+    def sweep(self, profile: OrgProfile | dict, feature: str, *, n: int = 30) -> pd.DataFrame:
+        """How total cost responds as one factor varies across its range."""
+        return sweep(self._coerce(profile), feature, n=n)
+
+    @staticmethod
+    def benchmark(profile: OrgProfile | dict) -> JurisdictionBenchmark:
+        p = profile if isinstance(profile, OrgProfile) else OrgProfile(**profile)
+        return jurisdiction(p.jurisdiction)
+
+    @staticmethod
+    def money(profile: OrgProfile | dict, value: float, decimals: int = 2) -> str:
+        return BreachLens.benchmark(profile).format(value, decimals)
+
+    # --- optional ML second opinion ------------------------------------------
+    @classmethod
+    def with_ml(cls, **train_kwargs) -> BreachLens:
+        """Attach an ML model trained on the bundled (or supplied) dataset."""
+        return cls(ml_model=train(**train_kwargs))
+
+    def predict_ml(self, profile: OrgProfile | dict, confidence: float = 0.9) -> PredictionResult:
+        if self.ml_model is None:
+            raise RuntimeError("No ML model attached. Use BreachLens.with_ml() first.")
+        p = self._coerce(profile)
+        frame = pd.DataFrame([p.to_features()])
+        point, lower, upper = self.ml_model.predict_interval(frame, confidence)
+        return PredictionResult(
+            expected_cost=float(point[0]),
+            lower=float(lower[0]),
+            upper=float(upper[0]),
+            confidence=confidence,
+            model_name=self.ml_model.name,
+        )

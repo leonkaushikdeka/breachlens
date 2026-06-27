@@ -9,142 +9,131 @@ Interactive docs are served at /docs (Swagger) and /redoc.
 
 from __future__ import annotations
 
-import os
-from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from breachlens import __version__
-from breachlens.config import FEATURES
+from breachlens.benchmarks import Industry, Jurisdiction
+from breachlens.controls import CONTROL_CATALOG
+from breachlens.penalties import regulatory_penalty
 from breachlens.predictor import BreachLens
-from breachlens.schema import BreachProfile
-
-_state: dict[str, Any] = {}
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    _state["lens"] = BreachLens.load_or_train(
-        os.getenv("BREACHLENS_MODEL_PATH"), region_code=os.getenv("BREACHLENS_REGION")
-    )
-    yield
-    _state.clear()
-
+from breachlens.schema import OrgProfile
 
 app = FastAPI(
     title="BreachLens API",
     version=__version__,
-    description="Cyber breach cost & risk quantification engine.",
-    lifespan=lifespan,
+    description="Data breach cost predictor & risk quantification engine "
+    "(IBM benchmarks + DPDP/GDPR penalties + Monte Carlo).",
 )
+lens = BreachLens()
 
 
-def _lens() -> BreachLens:
-    lens = _state.get("lens")
-    if lens is None:  # pragma: no cover - lifespan guarantees presence
-        raise HTTPException(status_code=503, detail="Model not ready.")
-    return lens
+class EstimateRequest(BaseModel):
+    profile: OrgProfile
+    controls: list[str] = Field(default_factory=list)
 
 
-class PredictResponse(BaseModel):
-    expected_cost: float
-    lower: float
-    upper: float
-    confidence: float
-    model_name: str
-    currency_code: str
-    formatted: str
-    contributions: list[dict[str, Any]]
-
-
-class WhatIfRequest(BaseModel):
-    profile: BreachProfile
-    changes: dict[str, float] = Field(..., description="Feature -> new value.")
-    confidence: float = 0.9
-
-
-class WhatIfResponse(BaseModel):
-    baseline_cost: float
-    adjusted_cost: float
-    savings: float
-    savings_pct: float
-    changes: dict[str, float]
+class InvestRequest(BaseModel):
+    profile: OrgProfile
+    add_controls: list[str]
+    investment: float = Field(..., description="Annual control cost in display units.")
+    breach_probability: float | None = None
 
 
 @app.get("/", tags=["meta"])
 def root() -> dict[str, Any]:
-    lens = _lens()
-    return {
-        "name": "BreachLens API",
-        "version": __version__,
-        "model": lens.model.name,
-        "metrics": lens.model.metrics,
-        "docs": "/docs",
-    }
+    return {"name": "BreachLens API", "version": __version__, "docs": "/docs"}
 
 
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, str]:
-    return {"status": "ok" if _state.get("lens") else "starting"}
+    return {"status": "ok"}
 
 
-@app.get("/features", tags=["meta"])
-def features() -> list[dict[str, Any]]:
+@app.get("/industries", tags=["meta"])
+def industries() -> list[str]:
+    return [e.value for e in Industry]
+
+
+@app.get("/jurisdictions", tags=["meta"])
+def jurisdictions() -> list[str]:
+    return [e.value for e in Jurisdiction]
+
+
+@app.get("/controls", tags=["meta"])
+def controls() -> list[dict[str, Any]]:
     return [
         {
-            "name": f.name,
-            "label": f.label,
-            "unit": f.unit,
-            "min": f.min,
-            "max": f.max,
-            "default": f.default,
-            "higher_increases_cost": f.higher_increases_cost,
-            "help": f.help,
+            "key": c.key,
+            "name": c.name,
+            "description": c.description,
+            "cost_reduction": c.cost_reduction,
+            "frequency_reduction": c.frequency_reduction,
         }
-        for f in FEATURES
+        for c in CONTROL_CATALOG.values()
     ]
 
 
-@app.get("/benchmark", tags=["model"])
-def benchmark() -> list[dict[str, Any]]:
-    return _lens().model.scoreboard.to_dict(orient="records")
+@app.post("/estimate", tags=["estimate"])
+def estimate(request: EstimateRequest) -> dict[str, Any]:
+    c = lens.estimate(request.profile, request.controls)
+    return {
+        **c.as_dict(),
+        "currency_code": c.benchmark.currency_code,
+        "unit_label": c.benchmark.unit_label,
+        "formatted_total": c.format(c.total),
+        "drivers": c.drivers,
+    }
 
 
-@app.get("/importance", tags=["model"])
-def importance() -> list[dict[str, Any]]:
-    return _lens().importance().to_dict(orient="records")
+@app.post("/simulate", tags=["estimate"])
+def simulate(request: EstimateRequest) -> dict[str, Any]:
+    mc = lens.simulate(request.profile, request.controls)
+    losses, probs = mc.exceedance_curve()
+    return {
+        "mean": mc.mean,
+        "p50": mc.p50,
+        "p90": mc.p90,
+        "p95": mc.p95,
+        "currency_symbol": mc.currency_symbol,
+        "unit_label": mc.unit_label,
+        "exceedance_curve": {"loss": losses.tolist(), "probability": probs.tolist()},
+    }
 
 
-@app.post("/predict", response_model=PredictResponse, tags=["predict"])
-def predict(profile: BreachProfile, confidence: float = 0.9) -> PredictResponse:
-    lens = _lens()
-    result = lens.predict(profile, confidence=confidence)
-    contributions = lens.explain(profile).to_dict(orient="records")
-    return PredictResponse(
-        expected_cost=result.expected_cost,
-        lower=result.lower,
-        upper=result.upper,
-        confidence=result.confidence,
-        model_name=result.model_name,
-        currency_code=lens.region.currency_code,
-        formatted=lens.format(result.expected_cost),
-        contributions=contributions,
+@app.post("/invest", tags=["estimate"])
+def invest(request: InvestRequest) -> dict[str, Any]:
+    if not request.add_controls:
+        raise HTTPException(status_code=422, detail="add_controls must not be empty.")
+    case = lens.investment_case(
+        request.profile,
+        request.add_controls,
+        investment=request.investment,
+        breach_probability=request.breach_probability,
     )
+    return {
+        "baseline_total": case.baseline.total,
+        "improved_total": case.improved.total,
+        "gross_savings": case.gross_savings,
+        "expected_savings": case.expected_savings,
+        "investment": case.investment,
+        "breach_probability": case.breach_probability,
+        "roi": case.roi,
+        "payback_years": case.payback_years,
+    }
 
 
-@app.post("/whatif", response_model=WhatIfResponse, tags=["predict"])
-def whatif(request: WhatIfRequest) -> WhatIfResponse:
-    lens = _lens()
-    try:
-        scenario = lens.what_if(request.profile, request.changes, confidence=request.confidence)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return WhatIfResponse(
-        baseline_cost=scenario.baseline.expected_cost,
-        adjusted_cost=scenario.adjusted.expected_cost,
-        savings=scenario.savings,
-        savings_pct=scenario.savings_pct,
-        changes=scenario.changes,
-    )
+@app.post("/penalty", tags=["estimate"])
+def penalty(
+    jurisdiction: Jurisdiction, records_thousands: float, severity: float = 0.35
+) -> dict[str, Any]:
+    p = regulatory_penalty(jurisdiction, records_thousands * 1000, severity=severity)
+    return {
+        "expected": p.expected,
+        "statutory_max": p.statutory_max,
+        "share_of_max": p.share_of_max,
+        "regime": p.regime,
+        "basis": p.basis,
+    }

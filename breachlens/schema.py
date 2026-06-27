@@ -10,6 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from .benchmarks import Industry, Jurisdiction
 from .config import FEATURE_BY_NAME, FEATURE_NAMES
 
 
@@ -45,6 +46,34 @@ class BreachProfile(BaseModel):
     def midpoint(cls) -> BreachProfile:
         """A neutral profile using each feature's default — handy for demos/tests."""
         return cls(**{name: FEATURE_BY_NAME[name].default for name in FEATURE_NAMES})
+
+
+class OrgProfile(BreachProfile):
+    """A breach scenario for the benchmark-driven estimator.
+
+    Extends the four core breach factors with the context the published benchmarks
+    are keyed on: industry, regulatory jurisdiction, and an estimate of regulatory
+    severity. Defaults keep it usable from a single line.
+    """
+
+    industry: Industry = Industry.SERVICES
+    jurisdiction: Jurisdiction = Jurisdiction.IN
+    regulatory_severity: float = Field(
+        0.35, ge=0.0, le=1.0, description="0-1 estimate of regulatory severity."
+    )
+    turnover_million: float | None = Field(
+        None, description="Global annual turnover for the GDPR 4%-of-turnover branch."
+    )
+
+    @property
+    def records_actual(self) -> float:
+        """Absolute record count (input is in thousands)."""
+        return self.records_exposed * 1000.0
+
+    @property
+    def lifecycle_days(self) -> float:
+        """Total breach lifecycle: time to detect plus time to contain."""
+        return self.detection_time + self.response_time
 
 
 class PredictionResult(BaseModel):

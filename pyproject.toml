@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "breachlens"
-version = "1.0.0"
-description = "Open-source cyber breach cost & risk quantification engine"
+version = "2.0.0"
+description = "Data breach cost predictor & cyber-risk quantification engine"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -33,7 +33,6 @@ dependencies = [
 [project.optional-dependencies]
 app = ["streamlit>=1.40", "plotly>=5.18"]
 api = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
-explain = ["shap>=0.44"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.1",
@@ -61,7 +60,10 @@ extend-exclude = ["examples", "docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
-ignore = ["B008"]  # FastAPI uses callables in argument defaults
+ignore = [
+    "B008",  # FastAPI uses callables in argument defaults
+    "C408",  # dict(...) is idiomatic in Plotly chart specs
+]
 
 [tool.mypy]
 python_version = "3.10"

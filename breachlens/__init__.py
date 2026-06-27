@@ -1,38 +1,52 @@
-"""BreachLens — open-source cyber breach cost & risk quantification engine.
+"""BreachLens — open-source data breach cost predictor & risk quantification engine.
 
-Estimate the financial cost of a data breach from measurable security factors,
-quantify the uncertainty, explain the drivers, and simulate which security
-investments actually reduce the cost.
+Estimate what a data breach would cost an organisation from real, cited industry
+benchmarks (IBM Cost of a Data Breach) plus regulatory penalty models (DPDP Act 2023,
+GDPR), with Monte Carlo uncertainty and a security-investment ROI simulator.
 
 Quick start::
 
-    from breachlens import BreachLens, BreachProfile
+    from breachlens import BreachLens, OrgProfile, Industry, Jurisdiction
 
-    lens = BreachLens.load_or_train()
-    profile = BreachProfile(
-        records_exposed=300, detection_time=200, response_time=90, security_score=40
+    lens = BreachLens()
+    org = OrgProfile(
+        records_exposed=300, detection_time=200, response_time=90, security_score=45,
+        industry=Industry.FINANCIAL, jurisdiction=Jurisdiction.IN,
     )
-    result = lens.predict(profile)
-    print(lens.format(result.expected_cost))
+    cost = lens.estimate(org)
+    print(cost.format(cost.total))            # e.g. ₹120.34 crore
+
+    mc = lens.simulate(org)
+    print(mc.format(mc.p90))                   # 90th-percentile loss
 """
 
 from __future__ import annotations
 
-from .config import FEATURES, REGIONS, get_region
-from .models import BreachModel, benchmark_models, train
+from .benchmarks import Industry, Jurisdiction, jurisdiction
+from .controls import CONTROL_CATALOG
+from .cost_model import CostBreakdown, estimate_cost
+from .montecarlo import MonteCarloResult, simulate
+from .penalties import regulatory_penalty
 from .predictor import BreachLens
-from .schema import BreachProfile, PredictionResult
+from .scenario import InvestmentCase, build_investment_case
+from .schema import BreachProfile, OrgProfile, PredictionResult
 
 __all__ = [
     "BreachLens",
+    "OrgProfile",
     "BreachProfile",
     "PredictionResult",
-    "BreachModel",
-    "FEATURES",
-    "REGIONS",
-    "get_region",
-    "benchmark_models",
-    "train",
+    "CostBreakdown",
+    "MonteCarloResult",
+    "InvestmentCase",
+    "Industry",
+    "Jurisdiction",
+    "CONTROL_CATALOG",
+    "estimate_cost",
+    "simulate",
+    "regulatory_penalty",
+    "build_investment_case",
+    "jurisdiction",
 ]
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
